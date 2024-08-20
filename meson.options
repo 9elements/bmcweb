@@ -367,6 +367,14 @@ option(
 
 # BMCWEB_EXPERIMENTAL_HTTP2
 option(
+  'experimental-approach-to-dbus',
+  type: 'feature',
+  value: 'disabled',
+  description: '''This is a temporary option flag for staging the
+  the new approach handling dbus resources. Solely for testing purposes.''',
+  )
+
+option(
     'experimental-http2',
     type: 'feature',
     value: 'disabled',

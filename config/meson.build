@@ -7,6 +7,7 @@ feature_options = [
     'cookie-auth',
     'experimental-http2',
     'experimental-redfish-multi-computer-system',
+    'experimental-approach-to-dbus',
     'google-api',
     'host-serial-socket',
     'hypervisor-computer-system',
