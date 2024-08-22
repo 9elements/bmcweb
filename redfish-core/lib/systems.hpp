@@ -530,13 +530,16 @@ inline void
  *
  * @return None.
  */
-inline void getHostState(const std::shared_ptr<bmcweb::AsyncResp>& asyncResp)
+inline void getHostState(
+    const std::map<std::string, std::string>& /*reqParams*/,
+    const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
+    const std::string& /*systemName*/,
+    const sdbusplus::message::object_path& path, const std::string& service)
 {
     BMCWEB_LOG_DEBUG("Get host information.");
     sdbusplus::asio::getProperty<std::string>(
-        *crow::connections::systemBus, "xyz.openbmc_project.State.Host",
-        "/xyz/openbmc_project/state/host0", "xyz.openbmc_project.State.Host",
-        "CurrentHostState",
+        *crow::connections::systemBus, service, path,
+        "xyz.openbmc_project.State.Host", "CurrentHostState",
         [asyncResp](const boost::system::error_code& ec,
                     const std::string& hostState) {
             if (ec)
@@ -2995,13 +2998,13 @@ inline void
         return;
     }
 
-    if constexpr (BMCWEB_EXPERIMENTAL_REDFISH_MULTI_COMPUTER_SYSTEM)
-    {
-        // Option currently returns no systems.  TBD
-        messages::resourceNotFound(asyncResp->res, "ComputerSystem",
-                                   systemName);
-        return;
-    }
+    // if constexpr (BMCWEB_EXPERIMENTAL_REDFISH_MULTI_COMPUTER_SYSTEM)
+    // {
+    //     // Option currently returns no systems.  TBD
+    //     messages::resourceNotFound(asyncResp->res, "ComputerSystem",
+    //                                systemName);
+    //     return;
+    // }
 
     if (systemName == "hypervisor")
     {
@@ -3009,12 +3012,12 @@ inline void
         return;
     }
 
-    if (systemName != BMCWEB_REDFISH_SYSTEM_URI_NAME)
-    {
-        messages::resourceNotFound(asyncResp->res, "ComputerSystem",
-                                   systemName);
-        return;
-    }
+    // if (systemName != BMCWEB_REDFISH_SYSTEM_URI_NAME)
+    // {
+    //     messages::resourceNotFound(asyncResp->res, "ComputerSystem",
+    //                                systemName);
+    //     return;
+    // }
     asyncResp->res.addHeader(
         boost::beast::http::field::link,
         "</redfish/v1/JsonSchemas/ComputerSystem/ComputerSystem.json>; rel=describedby");
@@ -3094,28 +3097,34 @@ inline void
             aRsp->res.jsonValue["Links"]["Chassis"] = std::move(chassisArray);
         });
 
+    const std::map<std::string, std::string> reqParams;
+
     getSystemLocationIndicatorActive(asyncResp);
     // TODO (Gunnar): Remove IndicatorLED after enough time has passed
     getIndicatorLedState(asyncResp);
-    getComputerSystem(asyncResp);
-    getHostState(asyncResp);
-    getBootProperties(asyncResp);
-    getBootProgress(asyncResp);
-    getBootProgressLastStateTime(asyncResp);
-    pcie_util::getPCIeDeviceList(asyncResp,
-                                 nlohmann::json::json_pointer("/PCIeDevices"));
-    getHostWatchdogTimer(asyncResp);
-    getPowerRestorePolicy(asyncResp);
-    getStopBootOnFault(asyncResp);
-    getAutomaticRetryPolicy(asyncResp);
-    getLastResetTime(asyncResp);
-    if constexpr (BMCWEB_REDFISH_PROVISIONING_FEATURE)
-    {
-        getProvisioningStatus(asyncResp);
-    }
-    getTrustedModuleRequiredToBoot(asyncResp);
-    getPowerMode(asyncResp);
-    getIdlePowerSaver(asyncResp);
+    // getComputerSystem(asyncResp);
+
+    // getHostState(asyncResp);
+    getComputerSystemDBusResources(reqParams, asyncResp, systemName,
+                                   "xyz.openbmc_project.State.Host",
+                                   getHostState);
+    // getBootProperties(asyncResp);
+    // getBootProgress(asyncResp);
+    // getBootProgressLastStateTime(asyncResp);
+    // pcie_util::getPCIeDeviceList(asyncResp,
+    //                              nlohmann::json::json_pointer("/PCIeDevices"));
+    // getHostWatchdogTimer(asyncResp);
+    // getPowerRestorePolicy(asyncResp);
+    // getStopBootOnFault(asyncResp);
+    // getAutomaticRetryPolicy(asyncResp);
+    // getLastResetTime(asyncResp);
+    // if constexpr (BMCWEB_REDFISH_PROVISIONING_FEATURE)
+    // {
+    //     getProvisioningStatus(asyncResp);
+    // }
+    // getTrustedModuleRequiredToBoot(asyncResp);
+    // getPowerMode(asyncResp);
+    // getIdlePowerSaver(asyncResp);
 }
 
 inline void handleComputerSystemPatch(
