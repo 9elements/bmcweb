@@ -33,6 +33,7 @@
 #include "utils/json_utils.hpp"
 #include "utils/pcie_util.hpp"
 #include "utils/sw_utils.hpp"
+#include "utils/systems_utils.hpp"
 #include "utils/time_utils.hpp"
 
 #include <boost/asio/error.hpp>
@@ -529,13 +530,16 @@ inline void
  *
  * @return None.
  */
-inline void getHostState(const std::shared_ptr<bmcweb::AsyncResp>& asyncResp)
+inline void getHostState(
+    const std::map<std::string, std::string>& /*reqParams*/,
+    const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
+    const std::string& /*systemName*/,
+    const sdbusplus::message::object_path& path, const std::string& service)
 {
     BMCWEB_LOG_DEBUG("Get host information.");
     sdbusplus::asio::getProperty<std::string>(
-        *crow::connections::systemBus, "xyz.openbmc_project.State.Host",
-        "/xyz/openbmc_project/state/host0", "xyz.openbmc_project.State.Host",
-        "CurrentHostState",
+        *crow::connections::systemBus, service, path,
+        "xyz.openbmc_project.State.Host", "CurrentHostState",
         [asyncResp](const boost::system::error_code& ec,
                     const std::string& hostState) {
             if (ec)
@@ -2814,48 +2818,7 @@ inline void handleComputerSystemCollectionGet(
     asyncResp->res.jsonValue["@odata.id"] = "/redfish/v1/Systems";
     asyncResp->res.jsonValue["Name"] = "Computer System Collection";
 
-    nlohmann::json& ifaceArray = asyncResp->res.jsonValue["Members"];
-    ifaceArray = nlohmann::json::array();
-    if constexpr (BMCWEB_EXPERIMENTAL_REDFISH_MULTI_COMPUTER_SYSTEM)
-    {
-        asyncResp->res.jsonValue["Members@odata.count"] = 0;
-        // Option currently returns no systems.  TBD
-        return;
-    }
-    asyncResp->res.jsonValue["Members@odata.count"] = 1;
-    nlohmann::json::object_t system;
-    system["@odata.id"] = boost::urls::format("/redfish/v1/Systems/{}",
-                                              BMCWEB_REDFISH_SYSTEM_URI_NAME);
-    ifaceArray.emplace_back(std::move(system));
-    sdbusplus::asio::getProperty<std::string>(
-        *crow::connections::systemBus, "xyz.openbmc_project.Settings",
-        "/xyz/openbmc_project/network/hypervisor",
-        "xyz.openbmc_project.Network.SystemConfiguration", "HostName",
-        [asyncResp](const boost::system::error_code& ec2,
-                    const std::string& /*hostName*/) {
-            if (ec2)
-            {
-                return;
-            }
-            auto val = asyncResp->res.jsonValue.find("Members@odata.count");
-            if (val == asyncResp->res.jsonValue.end())
-            {
-                BMCWEB_LOG_CRITICAL("Count wasn't found??");
-                return;
-            }
-            int64_t* count = val->get_ptr<int64_t*>();
-            if (count == nullptr)
-            {
-                BMCWEB_LOG_CRITICAL("Count wasn't found??");
-                return;
-            }
-            *count = *count + 1;
-            BMCWEB_LOG_DEBUG("Hypervisor is available");
-            nlohmann::json& ifaceArray2 = asyncResp->res.jsonValue["Members"];
-            nlohmann::json::object_t hypervisor;
-            hypervisor["@odata.id"] = "/redfish/v1/Systems/hypervisor";
-            ifaceArray2.emplace_back(std::move(hypervisor));
-        });
+    getSystemCollectionMembers(asyncResp);
 }
 
 /**
@@ -3035,13 +2998,13 @@ inline void
         return;
     }
 
-    if constexpr (BMCWEB_EXPERIMENTAL_REDFISH_MULTI_COMPUTER_SYSTEM)
-    {
-        // Option currently returns no systems.  TBD
-        messages::resourceNotFound(asyncResp->res, "ComputerSystem",
-                                   systemName);
-        return;
-    }
+    // if constexpr (BMCWEB_EXPERIMENTAL_REDFISH_MULTI_COMPUTER_SYSTEM)
+    // {
+    //     // Option currently returns no systems.  TBD
+    //     messages::resourceNotFound(asyncResp->res, "ComputerSystem",
+    //                                systemName);
+    //     return;
+    // }
 
     if (systemName == "hypervisor")
     {
@@ -3049,12 +3012,12 @@ inline void
         return;
     }
 
-    if (systemName != BMCWEB_REDFISH_SYSTEM_URI_NAME)
-    {
-        messages::resourceNotFound(asyncResp->res, "ComputerSystem",
-                                   systemName);
-        return;
-    }
+    // if (systemName != BMCWEB_REDFISH_SYSTEM_URI_NAME)
+    // {
+    //     messages::resourceNotFound(asyncResp->res, "ComputerSystem",
+    //                                systemName);
+    //     return;
+    // }
     asyncResp->res.addHeader(
         boost::beast::http::field::link,
         "</redfish/v1/JsonSchemas/ComputerSystem/ComputerSystem.json>; rel=describedby");
@@ -3134,28 +3097,34 @@ inline void
             aRsp->res.jsonValue["Links"]["Chassis"] = std::move(chassisArray);
         });
 
+    const std::map<std::string, std::string> reqParams;
+
     getSystemLocationIndicatorActive(asyncResp);
     // TODO (Gunnar): Remove IndicatorLED after enough time has passed
     getIndicatorLedState(asyncResp);
-    getComputerSystem(asyncResp);
-    getHostState(asyncResp);
-    getBootProperties(asyncResp);
-    getBootProgress(asyncResp);
-    getBootProgressLastStateTime(asyncResp);
-    pcie_util::getPCIeDeviceList(asyncResp,
-                                 nlohmann::json::json_pointer("/PCIeDevices"));
-    getHostWatchdogTimer(asyncResp);
-    getPowerRestorePolicy(asyncResp);
-    getStopBootOnFault(asyncResp);
-    getAutomaticRetryPolicy(asyncResp);
-    getLastResetTime(asyncResp);
-    if constexpr (BMCWEB_REDFISH_PROVISIONING_FEATURE)
-    {
-        getProvisioningStatus(asyncResp);
-    }
-    getTrustedModuleRequiredToBoot(asyncResp);
-    getPowerMode(asyncResp);
-    getIdlePowerSaver(asyncResp);
+    // getComputerSystem(asyncResp);
+
+    // getHostState(asyncResp);
+    getComputerSystemDBusResources(reqParams, asyncResp, systemName,
+                                   "xyz.openbmc_project.State.Host",
+                                   getHostState);
+    // getBootProperties(asyncResp);
+    // getBootProgress(asyncResp);
+    // getBootProgressLastStateTime(asyncResp);
+    // pcie_util::getPCIeDeviceList(asyncResp,
+    //                              nlohmann::json::json_pointer("/PCIeDevices"));
+    // getHostWatchdogTimer(asyncResp);
+    // getPowerRestorePolicy(asyncResp);
+    // getStopBootOnFault(asyncResp);
+    // getAutomaticRetryPolicy(asyncResp);
+    // getLastResetTime(asyncResp);
+    // if constexpr (BMCWEB_REDFISH_PROVISIONING_FEATURE)
+    // {
+    //     getProvisioningStatus(asyncResp);
+    // }
+    // getTrustedModuleRequiredToBoot(asyncResp);
+    // getPowerMode(asyncResp);
+    // getIdlePowerSaver(asyncResp);
 }
 
 inline void handleComputerSystemPatch(
