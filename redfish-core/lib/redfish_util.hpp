@@ -11,6 +11,7 @@
 
 #include <boost/system/errc.hpp>
 #include <boost/system/error_code.hpp>
+#include <boost/url/format.hpp>
 #include <sdbusplus/message/native_types.hpp>
 
 #include <algorithm>
@@ -63,10 +64,12 @@ template <typename CallbackFunc>
 void getMainChassisId(const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
                       CallbackFunc&& callback)
 {
+    std::vector<std::string_view> interfaces;
+
+    interfaces = {"xyz.openbmc_project.Inventory.Item.Board",
+                  "xyz.openbmc_project.Inventory.Item.Chassis"};
+
     // Find managed chassis
-    constexpr std::array<std::string_view, 2> interfaces = {
-        "xyz.openbmc_project.Inventory.Item.Board",
-        "xyz.openbmc_project.Inventory.Item.Chassis"};
     dbus::utility::getSubTree(
         "/xyz/openbmc_project/inventory", 0, interfaces,
         [callback = std::forward<CallbackFunc>(callback),
@@ -92,6 +95,51 @@ void getMainChassisId(const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
                 return;
             }
             std::string chassisId = subtree[0].first.substr(idPos + 1);
+            BMCWEB_LOG_DEBUG("chassisId = {}", chassisId);
+            callback(chassisId, asyncResp);
+        });
+}
+
+template <typename CallbackFunc>
+void getMultiHostChassisId(const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
+                           const uint64_t computerSystemIndex,
+                           CallbackFunc&& callback)
+{
+    constexpr std::array<std::string_view, 1> interfaces = {
+        "xyz.openbmc_project.Inventory.Item.Chassis"};
+    // Find managed chassis
+    dbus::utility::getSubTree(
+        "/xyz/openbmc_project/inventory", 0, interfaces,
+        [asyncResp, callback = std::forward<CallbackFunc>(callback),
+         computerSystemIndex](
+            const boost::system::error_code& ec,
+            const dbus::utility::MapperGetSubTreeResponse& subtree) {
+            if (ec)
+            {
+                BMCWEB_LOG_ERROR("{}", ec);
+                return;
+            }
+            if (subtree.empty())
+            {
+                BMCWEB_LOG_DEBUG("Can't find chassis!");
+                return;
+            }
+
+            // Indexing os the hosts of a multi-host system start at 1.
+            // More can be read here:
+            // https://github.com/openbmc/phosphor-dbus-interfaces/tree/566005474550c2c8aef2d98a81793295d5fcf94d/yaml/xyz/openbmc_project/State#readme
+            std::size_t idx = static_cast<size_t>(computerSystemIndex);
+            idx -= 1;
+
+            std::size_t idPos = subtree[idx].first.rfind('/');
+            if (idPos == std::string::npos ||
+                (idPos + 1) >= subtree[idx].first.size())
+            {
+                messages::internalError(asyncResp->res);
+                BMCWEB_LOG_DEBUG("Can't parse chassis ID!");
+                return;
+            }
+            std::string chassisId = subtree[idx].first.substr(idPos + 1);
             BMCWEB_LOG_DEBUG("chassisId = {}", chassisId);
             callback(chassisId, asyncResp);
         });
