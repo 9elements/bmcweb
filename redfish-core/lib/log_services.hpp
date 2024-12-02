@@ -977,9 +977,10 @@ inline void requestRoutesSystemLogServiceCollection(App& app)
                 "xyz.openbmc_project.State.Boot.PostCode"};
             dbus::utility::getSubTreePaths(
                 "/", 0, interfaces,
-                [asyncResp](const boost::system::error_code& ec,
-                            const dbus::utility::MapperGetSubTreePathsResponse&
-                                subtreePath) {
+                [asyncResp,
+                 systemName](const boost::system::error_code& ec,
+                             const dbus::utility::MapperGetSubTreePathsResponse&
+                                 subtreePath) {
                     if (ec)
                     {
                         BMCWEB_LOG_ERROR("{}", ec);
@@ -993,9 +994,9 @@ inline void requestRoutesSystemLogServiceCollection(App& app)
                             nlohmann::json& logServiceArrayLocal =
                                 asyncResp->res.jsonValue["Members"];
                             nlohmann::json::object_t member;
-                            member["@odata.id"] = std::format(
+                            member["@odata.id"] = boost::urls::format(
                                 "/redfish/v1/Systems/{}/LogServices/PostCodes",
-                                BMCWEB_REDFISH_SYSTEM_URI_NAME);
+                                systemName);
 
                             logServiceArrayLocal.emplace_back(
                                 std::move(member));
