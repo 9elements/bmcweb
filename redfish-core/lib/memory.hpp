@@ -790,18 +790,14 @@ inline void requestRoutesMemoryCollection(App& app)
                 {
                     return;
                 }
-                if constexpr (BMCWEB_EXPERIMENTAL_REDFISH_MULTI_COMPUTER_SYSTEM)
+                if (!BMCWEB_REDFISH_SYSTEM_URI_NAME.empty())
                 {
-                    // Option currently returns no systems.  TBD
-                    messages::resourceNotFound(asyncResp->res, "ComputerSystem",
-                                               systemName);
-                    return;
-                }
-                if (systemName != BMCWEB_REDFISH_SYSTEM_URI_NAME)
-                {
-                    messages::resourceNotFound(asyncResp->res, "ComputerSystem",
-                                               systemName);
-                    return;
+                    if (systemName != BMCWEB_REDFISH_SYSTEM_URI_NAME)
+                    {
+                        messages::resourceNotFound(
+                            asyncResp->res, "ComputerSystem", systemName);
+                        return;
+                    }
                 }
 
                 asyncResp->res.jsonValue["@odata.type"] =
