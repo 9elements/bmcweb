@@ -173,19 +173,19 @@ class ConfigFile
 
                             if (!newSub)
                             {
-                                BMCWEB_LOG_ERROR("Problem reading subscription "
-                                                 "from persistent store");
+                                BMCWEB_LOG_ERROR(
+                                    "Problem reading subscription from persistent store");
                                 continue;
                             }
 
-                            BMCWEB_LOG_DEBUG("Restored subscription: {} {}",
-                                             newSub->id, newSub->customText);
+                            std::string id = newSub->id;
+                            BMCWEB_LOG_DEBUG("Restored subscription: {} {}", id,
+                                             newSub->customText);
 
                             EventServiceStore::getInstance()
                                 .subscriptionsConfigMap.emplace(
-                                    newSub->id,
-                                    std::make_shared<UserSubscription>(
-                                        std::move(*newSub)));
+                                    id, std::make_shared<UserSubscription>(
+                                            std::move(*newSub)));
                         }
                     }
                     else
@@ -267,7 +267,7 @@ class ConfigFile
         authConfig["BasicAuth"] = c.basic;
         authConfig["TLS"] = c.tls;
         authConfig["TLSStrict"] = c.tlsStrict;
-        authConfig["TLSCommonNameParseMode"] =
+        authConfig["MTLSCommonNameParseMode"] =
             static_cast<int>(c.mTLSCommonNameParsingMode);
 
         nlohmann::json& eventserviceConfig = data["eventservice_config"];

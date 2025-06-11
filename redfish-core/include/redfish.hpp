@@ -6,6 +6,7 @@
 #include "async_resp.hpp"
 #include "http_request.hpp"
 #include "redfish_oem_routing.hpp"
+#include "sub_request.hpp"
 #include "verb.hpp"
 
 #include <memory>
@@ -50,7 +51,12 @@ class RedfishService
         const crow::Request& req,
         const std::shared_ptr<bmcweb::AsyncResp>& asyncResp) const
     {
-        oemRouter.handle(req, asyncResp);
+        auto subReq = std::make_shared<SubRequest>(req);
+        if (!subReq->needHandling())
+        {
+            return;
+        }
+        oemRouter.handle(subReq, asyncResp);
     }
 
     OemRouter oemRouter;

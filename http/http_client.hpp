@@ -219,8 +219,8 @@ class ConnectionInfo : public std::enable_shared_from_this<ConnectionInfo>
         if (ec)
         {
             BMCWEB_LOG_ERROR("Connect {}:{}, id: {} failed: {}",
-                             endpoint.address().to_string(), endpoint.port(),
-                             connId, ec.message());
+                             host.encoded_host_address(), host.port(), connId,
+                             ec.message());
             state = ConnState::connectFailed;
             waitAndRetry();
             return;
@@ -243,13 +243,13 @@ class ConnectionInfo : public std::enable_shared_from_this<ConnectionInfo>
         {
             return;
         }
+        auto& ssl = *sslConn;
         state = ConnState::handshakeInProgress;
         timer.expires_after(std::chrono::seconds(30));
         timer.async_wait(std::bind_front(onTimeout, weak_from_this()));
-        sslConn->async_handshake(
-            boost::asio::ssl::stream_base::client,
-            std::bind_front(&ConnectionInfo::afterSslHandshake, this,
-                            shared_from_this()));
+        ssl.async_handshake(boost::asio::ssl::stream_base::client,
+                            std::bind_front(&ConnectionInfo::afterSslHandshake,
+                                            this, shared_from_this()));
     }
 
     void afterSslHandshake(const std::shared_ptr<ConnectionInfo>& /*self*/,

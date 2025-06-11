@@ -454,6 +454,7 @@ Fields common to all schemas
   - EfficiencyPercent
 - FirmwareVersion
 - Location
+- LocationIndicatorActive
 - Manufacturer
 - Model
 - PartNumber
@@ -1119,6 +1120,7 @@ other.
 - HttpPushUri
 - HttpPushUriOptions
 - MaxImageSizeBytes
+- MultipartHttpPushUri
 - ServiceEnabled
 
 ### /redfish/v1/UpdateService/FirmwareInventory/

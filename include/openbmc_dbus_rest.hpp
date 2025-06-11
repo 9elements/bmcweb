@@ -103,7 +103,7 @@ inline void introspectObjects(
         transaction->res.jsonValue["objects"] = nlohmann::json::array();
     }
 
-    crow::connections::systemBus->async_method_call(
+    dbus::utility::async_method_call(
         [transaction, processName{std::string(processName)},
          objectPath{std::string(objectPath)}](
             const boost::system::error_code& ec,
@@ -210,7 +210,7 @@ inline void findRemainingObjectsForEnumerate(
             // An enumerate does not return the target path's properties
             continue;
         }
-        if (dataJson.find(path) == dataJson.end())
+        if (!dataJson.contains(path))
         {
             for (const auto& [service, interfaces] : interface_map)
             {
@@ -335,7 +335,7 @@ inline void findObjectManagerPathForEnumerate(
 {
     BMCWEB_LOG_DEBUG("Finding objectmanager for path {} on connection:{}",
                      objectName, connectionName);
-    crow::connections::systemBus->async_method_call(
+    dbus::utility::async_method_call(
         [transaction, objectName, connectionName](
             const boost::system::error_code& ec,
             const dbus::utility::MapperGetAncestorsResponse& objects) {
@@ -1321,23 +1321,27 @@ inline void handleMethodResponse(
     // seems better to get the data back somehow.
     nlohmann::json::object_t* dataobj =
         data.get_ptr<nlohmann::json::object_t*>();
-    if (transaction->methodResponse.is_object() && dataobj != nullptr)
+
+    nlohmann::json::object_t* methodResponseObj =
+        transaction->methodResponse.get_ptr<nlohmann::json::object_t*>();
+    if (methodResponseObj != nullptr && dataobj != nullptr)
     {
         for (auto& obj : *dataobj)
         {
             // Note: Will overwrite the data for a duplicate key
-            transaction->methodResponse.emplace(obj.first,
-                                                std::move(obj.second));
+            methodResponseObj->emplace(obj.first, std::move(obj.second));
         }
         return;
     }
 
     nlohmann::json::array_t* dataarr = data.get_ptr<nlohmann::json::array_t*>();
-    if (transaction->methodResponse.is_array() && dataarr != nullptr)
+    nlohmann::json::array_t* methodResponseArr =
+        transaction->methodResponse.get_ptr<nlohmann::json::array_t*>();
+    if (methodResponseArr != nullptr && dataarr != nullptr)
     {
         for (auto& obj : *dataarr)
         {
-            transaction->methodResponse.emplace_back(std::move(obj));
+            methodResponseArr->emplace_back(std::move(obj));
         }
         return;
     }
@@ -1362,7 +1366,7 @@ inline void findActionOnInterface(
     const std::string& connectionName)
 {
     BMCWEB_LOG_DEBUG("findActionOnInterface for connection {}", connectionName);
-    crow::connections::systemBus->async_method_call(
+    dbus::utility::async_method_call(
         [transaction, connectionName{std::string(connectionName)}](
             const boost::system::error_code& ec,
             const std::string& introspectXml) {
@@ -1896,7 +1900,7 @@ inline void handlePut(const crow::Request& req,
             {
                 const std::string& connectionName = connection.first;
 
-                crow::connections::systemBus->async_method_call(
+                dbus::utility::async_method_call(
                     [connectionName{std::string(connectionName)},
                      transaction](const boost::system::error_code& ec3,
                                   const std::string& introspectXml) {
@@ -2183,7 +2187,7 @@ inline void handleBusSystemPost(
     }
     if (interfaceName.empty())
     {
-        crow::connections::systemBus->async_method_call(
+        dbus::utility::async_method_call(
             [asyncResp, processName,
              objectPath](const boost::system::error_code& ec,
                          const std::string& introspectXml) {
@@ -2237,7 +2241,7 @@ inline void handleBusSystemPost(
     }
     else if (methodName.empty())
     {
-        crow::connections::systemBus->async_method_call(
+        dbus::utility::async_method_call(
             [asyncResp, processName, objectPath,
              interfaceName](const boost::system::error_code& ec,
                             const std::string& introspectXml) {
@@ -2504,7 +2508,7 @@ inline void requestRoutes(App& app)
                         }
                     }
                 };
-                crow::connections::systemBus->async_method_call(
+                dbus::utility::async_method_call(
                     std::move(myCallback), "org.freedesktop.DBus", "/",
                     "org.freedesktop.DBus", "ListNames");
             });
