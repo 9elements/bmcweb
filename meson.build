@@ -403,6 +403,7 @@ srcfiles_bmcweb = files(
     'redfish-core/src/subscription.cpp',
     'redfish-core/src/task_messages.cpp',
     'redfish-core/src/utils/dbus_utils.cpp',
+    'redfish-core/src/utils/event_log_utils.cpp',
     'redfish-core/src/utils/json_utils.cpp',
     'redfish-core/src/utils/log_services_utils.cpp',
     'redfish-core/src/utils/time_utils.cpp',
