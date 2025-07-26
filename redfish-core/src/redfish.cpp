@@ -181,7 +181,7 @@ RedfishService::RedfishService(App& app)
     }
     else
     {
-        requestRoutesJournalEventLogEntryCollection(app);
+        requestRoutesJournalEventLogEntryCollection2(app);
         requestRoutesJournalEventLogEntry(app);
         requestRoutesJournalEventLogClear(app);
     }
