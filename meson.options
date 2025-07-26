@@ -116,6 +116,17 @@ option(
                    and /redfish/v1/Managers/bmc/LogServices/Dump''',
 )
 
+# BMCWEB_REDFISH_BMC_EVENT_LOG
+option(
+    'redfish-bmc-event-log',
+    type: 'feature',
+    value: 'disabled',
+    description: '''Enable EventLog log service transactions through Redfish for
+                    the managers resource, disable for systems resource. Paths
+                    are under
+                    /redfish/v1/Managers/bmc/LogServices/EventLog''',
+)
+
 # BMCWEB_REDFISH_DBUS_LOG
 option(
     'redfish-dbus-log',

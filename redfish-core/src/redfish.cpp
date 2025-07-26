@@ -20,6 +20,7 @@
 #include "hypervisor_system.hpp"
 #include "log_services.hpp"
 #include "manager_diagnostic_data.hpp"
+#include "manager_logservices_eventlog.hpp"
 #include "manager_logservices_journal.hpp"
 #include "managers.hpp"
 #include "memory.hpp"
@@ -113,7 +114,14 @@ RedfishService::RedfishService(App& app)
     requestRoutesCableCollection(app);
 
     requestRoutesSystemLogServiceCollection(app);
-    requestRoutesEventLogService(app);
+    if constexpr (BMCWEB_REDFISH_BMC_EVENT_LOG)
+    {
+        requestRoutesBMCEventLogService(app);
+    }
+    else
+    {
+        requestRoutesEventLogService(app);
+    }
 
     requestRoutesSystemsLogServicesPostCode(app);
 
@@ -174,13 +182,29 @@ RedfishService::RedfishService(App& app)
 
     if constexpr (BMCWEB_REDFISH_DBUS_LOG)
     {
-        requestRoutesDBusLogServiceActionsClear(app);
-        requestRoutesDBusEventLogEntryCollection(app);
-        requestRoutesDBusEventLogEntry(app);
-        requestRoutesDBusEventLogEntryDownload(app);
+        if constexpr (BMCWEB_REDFISH_BMC_EVENT_LOG)
+        {
+            requestRoutesBMCDBusLogServiceActionsClear(app);
+            requestRoutesBMCDBusEventLogEntryCollection(app);
+            requestRoutesBMCDBusEventLogEntry(app);
+            requestRoutesBMCDBusEventLogEntryDownload(app);
+        }
+        else
+        {
+            requestRoutesDBusLogServiceActionsClear(app);
+            requestRoutesDBusEventLogEntryCollection(app);
+            requestRoutesDBusEventLogEntry(app);
+            requestRoutesDBusEventLogEntryDownload(app);
+        }
     }
     else
     {
+        if constexpr (BMCWEB_REDFISH_BMC_EVENT_LOG)
+        {
+            requestRoutesBMCJournalEventLogEntryCollection(app);
+            requestRoutesBMCJournalEventLogEntry(app);
+            requestRoutesBMCJournalEventLogClear(app);
+        }
         requestRoutesJournalEventLogEntryCollection(app);
         requestRoutesJournalEventLogEntry(app);
         requestRoutesJournalEventLogClear(app);

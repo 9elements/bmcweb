@@ -932,7 +932,8 @@ inline void requestRoutesSystemLogServiceCollection(App& app)
             nlohmann::json& logServiceArray =
                 asyncResp->res.jsonValue["Members"];
             logServiceArray = nlohmann::json::array();
-            if constexpr (!BMCWEB_EXPERIMENTAL_REDFISH_MULTI_COMPUTER_SYSTEM)
+            if (!BMCWEB_EXPERIMENTAL_REDFISH_MULTI_COMPUTER_SYSTEM ||
+                !BMCWEB_REDFISH_BMC_EVENT_LOG)
             {
                 nlohmann::json::object_t eventLog;
                 eventLog["@odata.id"] = std::format(
@@ -1038,6 +1039,15 @@ inline void handleBMCLogServicesCollectionGet(
             boost::urls::format("/redfish/v1/Managers/{}/LogServices/Journal",
                                 BMCWEB_REDFISH_MANAGER_URI_NAME);
         logServiceArray.emplace_back(std::move(journal));
+    }
+
+    if constexpr (BMCWEB_REDFISH_BMC_EVENT_LOG)
+    {
+        nlohmann::json::object_t eventlog;
+        eventlog["@odata.id"] =
+            boost::urls::format("/redfish/v1/Managers/{}/LogServices/EventLog",
+                                BMCWEB_REDFISH_MANAGER_URI_NAME);
+        logServiceArray.emplace_back(std::move(eventlog));
     }
 
     asyncResp->res.jsonValue["Members@odata.count"] = logServiceArray.size();

@@ -148,6 +148,241 @@ std::string translateSeverityDbusToRedfish(const std::string& s)
     return "";
 }
 
+void afterLogEntriesGetManagedObjects(
+    const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
+    const boost::system::error_code& ec,
+    const dbus::utility::ManagedObjectType& resp)
+{
+    if (ec)
+    {
+        // TODO Handle for specific error code
+        BMCWEB_LOG_ERROR("getLogEntriesIfaceData resp_handler got error {}",
+                         ec);
+        messages::internalError(asyncResp->res);
+        return;
+    }
+    nlohmann::json::array_t entriesArray;
+    for (const auto& objectPath : resp)
+    {
+        dbus::utility::DBusPropertiesMap propsFlattened;
+        auto isEntry =
+            std::ranges::find_if(objectPath.second, [](const auto& object) {
+                return object.first == "xyz.openbmc_project.Logging.Entry";
+            });
+        if (isEntry == objectPath.second.end())
+        {
+            continue;
+        }
+
+        for (const auto& interfaceMap : objectPath.second)
+        {
+            for (const auto& propertyMap : interfaceMap.second)
+            {
+                propsFlattened.emplace_back(propertyMap.first,
+                                            propertyMap.second);
+            }
+        }
+        std::optional<DbusEventLogEntry> optEntry =
+            fillDbusEventLogEntryFromPropertyMap(propsFlattened);
+
+        if (!optEntry.has_value())
+        {
+            messages::internalError(asyncResp->res);
+            return;
+        }
+        fillEventLogLogEntryFromDbusLogEntry(*optEntry,
+                                             entriesArray.emplace_back());
+    }
+
+    redfish::json_util::sortJsonArrayByKey(entriesArray, "Id");
+    asyncResp->res.jsonValue["Members@odata.count"] = entriesArray.size();
+    asyncResp->res.jsonValue["Members"] = std::move(entriesArray);
+}
+
+LogParseError fillEventLogEntryJson(const std::string& logEntryID,
+                                    const std::string& logEntry,
+                                    nlohmann::json::object_t& logEntryJson)
+{
+    // The redfish log format is "<Timestamp> <MessageId>,<MessageArgs>"
+    // First get the Timestamp
+    size_t space = logEntry.find_first_of(' ');
+    if (space == std::string::npos)
+    {
+        return LogParseError::parseFailed;
+    }
+    std::string timestamp = logEntry.substr(0, space);
+    // Then get the log contents
+    size_t entryStart = logEntry.find_first_not_of(' ', space);
+    if (entryStart == std::string::npos)
+    {
+        return LogParseError::parseFailed;
+    }
+    std::string_view entry(logEntry);
+    entry.remove_prefix(entryStart);
+    // Use split to separate the entry into its fields
+    std::vector<std::string> logEntryFields;
+    bmcweb::split(logEntryFields, entry, ',');
+    // We need at least a MessageId to be valid
+    auto logEntryIter = logEntryFields.begin();
+    if (logEntryIter == logEntryFields.end())
+    {
+        return LogParseError::parseFailed;
+    }
+    std::string& messageID = *logEntryIter;
+    // Get the Message from the MessageRegistry
+    const registries::Message* message = registries::getMessage(messageID);
+
+    logEntryIter++;
+    if (message == nullptr)
+    {
+        BMCWEB_LOG_WARNING("Log entry not found in registry: {}", logEntry);
+        return LogParseError::messageIdNotInRegistry;
+    }
+
+    std::vector<std::string_view> messageArgs(logEntryIter,
+                                              logEntryFields.end());
+    messageArgs.resize(message->numberOfArgs);
+
+    std::string msg =
+        redfish::registries::fillMessageArgs(messageArgs, message->message);
+    if (msg.empty())
+    {
+        return LogParseError::parseFailed;
+    }
+
+    // Get the Created time from the timestamp. The log timestamp is in RFC3339
+    // format which matches the Redfish format except for the fractional seconds
+    // between the '.' and the '+', so just remove them.
+    std::size_t dot = timestamp.find_first_of('.');
+    std::size_t plus = timestamp.find_first_of('+');
+    if (dot != std::string::npos && plus != std::string::npos)
+    {
+        timestamp.erase(dot, plus - dot);
+    }
+
+    // Fill in the log entry with the gathered data
+    logEntryJson["@odata.type"] = "#LogEntry.v1_9_0.LogEntry";
+    if constexpr (BMCWEB_REDFISH_BMC_EVENT_LOG)
+    {
+        logEntryJson["@odata.id"] = boost::urls::format(
+            "/redfish/v1/Managers/{}/LogServices/EventLog/Entries/{}",
+            BMCWEB_REDFISH_MANAGER_URI_NAME, logEntryID);
+        logEntryJson["Name"] = "Event Log Entry";
+    }
+    else
+    {
+        logEntryJson["@odata.id"] = boost::urls::format(
+            "/redfish/v1/Systems/{}/LogServices/EventLog/Entries/{}",
+            BMCWEB_REDFISH_SYSTEM_URI_NAME, logEntryID);
+        logEntryJson["Name"] = "System Event Log Entry";
+    }
+    logEntryJson["Id"] = logEntryID;
+    logEntryJson["Message"] = std::move(msg);
+    logEntryJson["MessageId"] = std::move(messageID);
+    logEntryJson["MessageArgs"] = messageArgs;
+    logEntryJson["EntryType"] = "Event";
+    logEntryJson["Severity"] = message->messageSeverity;
+    logEntryJson["Created"] = std::move(timestamp);
+    return LogParseError::success;
+}
+
+void fillEventLogLogEntryFromDbusLogEntry(const DbusEventLogEntry& entry,
+                                          nlohmann::json& objectToFillOut)
+{
+    objectToFillOut["@odata.type"] = "#LogEntry.v1_9_0.LogEntry";
+    if constexpr (BMCWEB_REDFISH_BMC_EVENT_LOG)
+    {
+        objectToFillOut["@odata.id"] = boost::urls::format(
+            "/redfish/v1/Managers/{}/LogServices/EventLog/Entries/{}",
+            BMCWEB_REDFISH_MANAGER_URI_NAME, std::to_string(entry.Id));
+        objectToFillOut["Name"] = "System Event Log Entry";
+    }
+    else
+    {
+        objectToFillOut["@odata.id"] = boost::urls::format(
+            "/redfish/v1/Systems/{}/LogServices/EventLog/Entries/{}",
+            BMCWEB_REDFISH_SYSTEM_URI_NAME, std::to_string(entry.Id));
+        objectToFillOut["Name"] = "System Event Log Entry";
+    }
+    objectToFillOut["Id"] = std::to_string(entry.Id);
+    objectToFillOut["Message"] = entry.Message;
+    objectToFillOut["Resolved"] = entry.Resolved;
+    std::optional<bool> notifyAction =
+        getProviderNotifyAction(entry.ServiceProviderNotify);
+    if (notifyAction)
+    {
+        objectToFillOut["ServiceProviderNotified"] = *notifyAction;
+    }
+    if ((entry.Resolution != nullptr) && !entry.Resolution->empty())
+    {
+        objectToFillOut["Resolution"] = *entry.Resolution;
+    }
+    objectToFillOut["EntryType"] = "Event";
+    objectToFillOut["Severity"] =
+        translateSeverityDbusToRedfish(entry.Severity);
+    objectToFillOut["Created"] =
+        redfish::time_utils::getDateTimeUintMs(entry.Timestamp);
+    objectToFillOut["Modified"] =
+        redfish::time_utils::getDateTimeUintMs(entry.UpdateTimestamp);
+    if (entry.Path != nullptr)
+    {
+        if constexpr (BMCWEB_REDFISH_BMC_EVENT_LOG)
+        {
+            objectToFillOut["AdditionalDataURI"] = boost::urls::format(
+                "/redfish/v1/Managers/{}/LogServices/EventLog/Entries/{}/attachment",
+                BMCWEB_REDFISH_MANAGER_URI_NAME, std::to_string(entry.Id));
+        }
+        else
+        {
+            objectToFillOut["AdditionalDataURI"] = boost::urls::format(
+                "/redfish/v1/Systems/{}/LogServices/EventLog/Entries/{}/attachment",
+                BMCWEB_REDFISH_SYSTEM_URI_NAME, std::to_string(entry.Id));
+        }
+    }
+}
+
+void afterDBusEventLogEntryGet(
+    const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
+    const std::string& entryID, const boost::system::error_code& ec,
+    const dbus::utility::DBusPropertiesMap& resp)
+{
+    if (ec.value() == EBADR)
+    {
+        messages::resourceNotFound(asyncResp->res, "EventLogEntry", entryID);
+        return;
+    }
+    if (ec)
+    {
+        BMCWEB_LOG_ERROR("EventLogEntry (DBus) resp_handler got error {}", ec);
+        messages::internalError(asyncResp->res);
+        return;
+    }
+
+    std::optional<DbusEventLogEntry> optEntry =
+        fillDbusEventLogEntryFromPropertyMap(resp);
+
+    if (!optEntry.has_value())
+    {
+        messages::internalError(asyncResp->res);
+        return;
+    }
+
+    fillEventLogLogEntryFromDbusLogEntry(*optEntry, asyncResp->res.jsonValue);
+}
+
+void dBusEventLogEntryGet(const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
+                          std::string entryID)
+{
+    dbus::utility::escapePathForDbus(entryID);
+
+    // DBus implementation of EventLog/Entries
+    // Make call to Logging Service to find all log entry objects
+    dbus::utility::getAllProperties(
+        "xyz.openbmc_project.Logging",
+        "/xyz/openbmc_project/logging/entry/" + entryID, "",
+        std::bind_front(afterDBusEventLogEntryGet, asyncResp, entryID));
+}
+
 void dBusEventLogEntryPatch(const crow::Request& req,
                             const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
                             const std::string& entryId)
@@ -207,12 +442,13 @@ void downloadEventLogEntry(const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
                            const std::string& entryID,
                            const std::string& dumpType)
 {
-    if constexpr (BMCWEB_EXPERIMENTAL_REDFISH_MULTI_COMPUTER_SYSTEM)
+    if constexpr (BMCWEB_REDFISH_BMC_EVENT_LOG)
     {
-        // Option currently returns no systems.  TBD
-        messages::resourceNotFound(asyncResp->res, "ComputerSystem",
-                                   resourceID);
-        return;
+        if (resourceID != BMCWEB_REDFISH_MANAGER_URI_NAME)
+        {
+            messages::resourceNotFound(asyncResp->res, "Managers", resourceID);
+            return;
+        }
     }
     if (resourceID != BMCWEB_REDFISH_SYSTEM_URI_NAME)
     {

@@ -27,6 +27,7 @@ feature_options = [
     'redfish-allow-simple-update',
     'redfish-bmc-journal',
     'redfish-cpu-log',
+    'redfish-bmc-event-log',
     'redfish-dbus-log',
     'redfish-dump-log',
     'redfish-host-logger',

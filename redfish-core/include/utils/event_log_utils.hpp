@@ -81,6 +81,26 @@ std::optional<bool> getProviderNotifyAction(const std::string& notify);
 
 std::string translateSeverityDbusToRedfish(const std::string& s);
 
+void afterLogEntriesGetManagedObjects(
+    const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
+    const boost::system::error_code& ec,
+    const dbus::utility::ManagedObjectType& resp);
+
+void fillEventLogLogEntryFromDbusLogEntry(const DbusEventLogEntry& entry,
+                                          nlohmann::json& objectToFillOut);
+
+LogParseError fillEventLogEntryJson(const std::string& logEntryID,
+                                    const std::string& logEntry,
+                                    nlohmann::json::object_t& logEntryJson);
+
+void afterDBusEventLogEntryGet(
+    const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
+    const std::string& entryID, const boost::system::error_code& ec,
+    const dbus::utility::DBusPropertiesMap& resp);
+
+void dBusEventLogEntryGet(const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
+                          std::string entryID);
+
 void dBusEventLogEntryPatch(const crow::Request& req,
                             const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
                             const std::string& entryId);
@@ -105,5 +125,6 @@ void handleLogServicesEventLogActionsClearPost(
     App& app, const crow::Request& req,
     const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
     const std::string& resourceID);
+
 } // namespace event_log_utils
 } // namespace redfish
