@@ -913,27 +913,23 @@ inline void requestRoutesSystemLogServiceCollection(App& app)
             {
                 return;
             }
-            if constexpr (BMCWEB_EXPERIMENTAL_REDFISH_MULTI_COMPUTER_SYSTEM)
+
+            if constexpr (!BMCWEB_EXPERIMENTAL_REDFISH_MULTI_COMPUTER_SYSTEM)
             {
-                // Option currently returns no systems.  TBD
-                messages::resourceNotFound(asyncResp->res, "ComputerSystem",
-                                           systemName);
-                return;
-            }
-            if (systemName != BMCWEB_REDFISH_SYSTEM_URI_NAME)
-            {
-                messages::resourceNotFound(asyncResp->res, "ComputerSystem",
-                                           systemName);
-                return;
+                if (systemName != BMCWEB_REDFISH_SYSTEM_URI_NAME)
+                {
+                    messages::resourceNotFound(asyncResp->res, "ComputerSystem",
+                                               systemName);
+                    return;
+                }
             }
 
             // Collections don't include the static data added by SubRoute
             // because it has a duplicate entry for members
             asyncResp->res.jsonValue["@odata.type"] =
                 "#LogServiceCollection.LogServiceCollection";
-            asyncResp->res.jsonValue["@odata.id"] =
-                std::format("/redfish/v1/Systems/{}/LogServices",
-                            BMCWEB_REDFISH_SYSTEM_URI_NAME);
+            asyncResp->res.jsonValue["@odata.id"] = boost::urls::format(
+                "/redfish/v1/Systems/{}/LogServices", systemName);
             asyncResp->res.jsonValue["Name"] = "System Log Services Collection";
             asyncResp->res.jsonValue["Description"] =
                 "Collection of LogServices for this Computer System";
@@ -945,7 +941,8 @@ inline void requestRoutesSystemLogServiceCollection(App& app)
                 std::format("/redfish/v1/Systems/{}/LogServices/EventLog",
                             BMCWEB_REDFISH_SYSTEM_URI_NAME);
             logServiceArray.emplace_back(std::move(eventLog));
-            if constexpr (BMCWEB_REDFISH_DUMP_LOG)
+            if constexpr (BMCWEB_REDFISH_DUMP_LOG &&
+                          !BMCWEB_EXPERIMENTAL_REDFISH_MULTI_COMPUTER_SYSTEM)
             {
                 nlohmann::json::object_t dumpLog;
                 dumpLog["@odata.id"] =
@@ -954,7 +951,8 @@ inline void requestRoutesSystemLogServiceCollection(App& app)
                 logServiceArray.emplace_back(std::move(dumpLog));
             }
 
-            if constexpr (BMCWEB_REDFISH_CPU_LOG)
+            if constexpr (BMCWEB_REDFISH_CPU_LOG &&
+                          !BMCWEB_EXPERIMENTAL_REDFISH_MULTI_COMPUTER_SYSTEM)
             {
                 nlohmann::json::object_t crashdump;
                 crashdump["@odata.id"] =
@@ -963,7 +961,8 @@ inline void requestRoutesSystemLogServiceCollection(App& app)
                 logServiceArray.emplace_back(std::move(crashdump));
             }
 
-            if constexpr (BMCWEB_REDFISH_HOST_LOGGER)
+            if constexpr (BMCWEB_REDFISH_HOST_LOGGER &&
+                          !BMCWEB_EXPERIMENTAL_REDFISH_MULTI_COMPUTER_SYSTEM)
             {
                 nlohmann::json::object_t hostlogger;
                 hostlogger["@odata.id"] =
