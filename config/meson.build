@@ -112,6 +112,20 @@ conf_data.set(
     string_options_string + int_options_string + feature_options_string,
 )
 
+multi_comp = get_option('experimental-redfish-multi-computer-system').enabled()
+cpuLog = get_option('redfish-cpu-log').disable_if(
+    multi_comp,
+    error_message: 'not supported with experimental-redfish-multi-computer-system option enabled',
+)
+dumpLog = get_option('redfish-dump-log').disable_if(
+    multi_comp,
+    error_message: 'not supported with experimental-redfish-multi-computer-system option enabled',
+)
+hostLog = get_option('redfish-host-logger').disable_if(
+    multi_comp,
+    error_message: 'not supported with experimental-redfish-multi-computer-system option enabled',
+)
+
 conf_h_dep = declare_dependency(
     include_directories: include_directories('.'),
     sources: configure_file(
