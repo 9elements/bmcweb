@@ -192,6 +192,24 @@ inline void getChassisState(std::shared_ptr<bmcweb::AsyncResp> asyncResp)
                 asyncResp->res.jsonValue["Status"]["State"] =
                     resource::State::StandbyOffline;
             }
+            else if (
+                chassisState ==
+                "xyz.openbmc_project.State.Chassis.PowerState.TransitioningToOff")
+            {
+                asyncResp->res.jsonValue["PowerState"] =
+                    resource::PowerState::PoweringOff;
+                asyncResp->res.jsonValue["Status"]["State"] =
+                    resource::State::StandbyOffline;
+            }
+            else if (
+                chassisState ==
+                "xyz.openbmc_project.State.Chassis.PowerState.TransitioningToOn")
+            {
+                asyncResp->res.jsonValue["PowerState"] =
+                    resource::PowerState::PoweringOn;
+                asyncResp->res.jsonValue["Status"]["State"] =
+                    resource::State::Starting;
+            }
         });
 }
 
@@ -457,8 +475,8 @@ inline void handleDecoratorAssetProperties(
 
     nlohmann::json::array_t computerSystems;
     nlohmann::json::object_t system;
-    system["@odata.id"] =
-        std::format("/redfish/v1/Systems/{}", BMCWEB_REDFISH_SYSTEM_URI_NAME);
+    system["@odata.id"] = boost::urls::format("/redfish/v1/Systems/{}",
+                                              BMCWEB_REDFISH_SYSTEM_URI_NAME);
     computerSystems.emplace_back(std::move(system));
     asyncResp->res.jsonValue["Links"]["ComputerSystems"] =
         std::move(computerSystems);
@@ -578,6 +596,10 @@ inline void handleChassisGetSubTree(
             "xyz.openbmc_project.Inventory.Decorator.Replaceable";
         const std::string revisionInterface =
             "xyz.openbmc_project.Inventory.Decorator.Revision";
+        const std::string uuidInterface = "xyz.openbmc_project.Common.UUID";
+        const std::string locationCodeInterface =
+            "xyz.openbmc_project.Inventory.Decorator.LocationCode";
+
         for (const auto& interface : interfaces2)
         {
             if (interface == assetTagInterface)
@@ -629,6 +651,14 @@ inline void handleChassisGetSubTree(
                         asyncResp->res.jsonValue["Version"] = property;
                     });
             }
+            else if (interface == uuidInterface)
+            {
+                getChassisUUID(asyncResp, connectionName, path);
+            }
+            else if (interface == locationCodeInterface)
+            {
+                getChassisLocationCode(asyncResp, connectionName, path);
+            }
         }
 
         for (const char* interface : hasIndicatorLed)
@@ -662,19 +692,6 @@ inline void handleChassisGetSubTree(
                 const dbus::utility::DBusPropertiesMap& propertiesList) {
                 handleChassisProperties(asyncResp, propertiesList);
             });
-
-        for (const auto& interface : interfaces2)
-        {
-            if (interface == "xyz.openbmc_project.Common.UUID")
-            {
-                getChassisUUID(asyncResp, connectionName, path);
-            }
-            else if (interface ==
-                     "xyz.openbmc_project.Inventory.Decorator.LocationCode")
-            {
-                getChassisLocationCode(asyncResp, connectionName, path);
-            }
-        }
 
         return;
     }

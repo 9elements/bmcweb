@@ -291,6 +291,8 @@ Fields common to all schemas
 #### Sensor
 
 - Implementation
+- PeakReading
+- PeakReadingTime
 - Reading
 - ReadingBasis
 - ReadingRangeMax
@@ -476,6 +478,7 @@ Fields common to all schemas
 
 ###### Assembly
 
+- LocationIndicatorActive
 - Model
 - PartNumber
 - SerialNumber

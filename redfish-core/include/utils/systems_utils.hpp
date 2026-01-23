@@ -26,6 +26,9 @@
 namespace redfish
 {
 
+namespace systems_utils
+{
+
 inline void handleSystemCollectionMembers(
     const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
     const boost::system::error_code& ec,
@@ -216,48 +219,38 @@ inline void getComputerSystemIndex(
 inline sdbusplus::message::object_path getHostStateObjectPath(
     const uint64_t computerSystemIndex)
 {
-    const sdbusplus::message::object_path hostStatePath(
-        "/xyz/openbmc_project/state/host" +
-        std::to_string(computerSystemIndex));
-
-    return hostStatePath;
+    sdbusplus::message::object_path hostPath("/xyz/openbmc_project/state");
+    hostPath /= std::format("host{}", computerSystemIndex);
+    return hostPath;
 }
 
 inline std::string getHostStateServiceName(const uint64_t computerSystemIndex)
 {
-    std::string hostStateService = "xyz.openbmc_project.State.Host";
-    if constexpr (BMCWEB_EXPERIMENTAL_REDFISH_MULTI_COMPUTER_SYSTEM)
-    {
-        hostStateService += std::to_string(computerSystemIndex);
-    }
-
-    return hostStateService;
+    return std::format("xyz.openbmc_project.State.Host{}", computerSystemIndex);
 }
 
 inline sdbusplus::message::object_path getChassisStateObjectPath(
     const uint64_t computerSystemIndex)
 {
-    const sdbusplus::message::object_path chassisStatePath(
-        "/xyz/openbmc_project/state/chassis" +
-        std::to_string(computerSystemIndex));
-
-    return chassisStatePath;
+    sdbusplus::message::object_path chassisPath("/xyz/openbmc_project/state");
+    chassisPath /= std::format("chassis{}", computerSystemIndex);
+    return chassisPath;
 }
 
 inline std::string getChassisStateServiceName(
     const uint64_t computerSystemIndex)
 {
-    std::string chassisStateService = "xyz.openbmc_project.State.Chassis";
-    if constexpr (BMCWEB_EXPERIMENTAL_REDFISH_MULTI_COMPUTER_SYSTEM)
-    {
-        chassisStateService += std::to_string(computerSystemIndex);
-    }
-
-    return chassisStateService;
+    return std::format("xyz.openbmc_project.State.Chassis{}",
+                       computerSystemIndex);
 }
 
-namespace systems_utils
+inline sdbusplus::message::object_path getControlObjectPath(
+    const uint64_t computerSystemIndex)
 {
+    sdbusplus::message::object_path controlPath("/xyz/openbmc_project/control");
+    controlPath /= std::format("host{}", computerSystemIndex);
+    return controlPath;
+}
 
 inline void afterGetValidSystemsPath(
     const std::shared_ptr<bmcweb::AsyncResp>& asyncResp,
@@ -312,8 +305,6 @@ inline void getValidSystemsPath(
         });
 }
 
-} // namespace systems_utils
-
 /**
  * @brief Match computerSystemIndex with index contained by an object path
  *        i.e 1 in /xyz/openbmc/project/control/host1/policy/TPMEnable
@@ -366,4 +357,5 @@ inline bool indexMatchingSubTreeMapObjectPath(
 
     return false;
 }
+} // namespace systems_utils
 } // namespace redfish
